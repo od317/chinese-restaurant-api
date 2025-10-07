@@ -14,7 +14,7 @@ class User(AbstractUser):
     is_verified = models.BooleanField(default=False)
     verification_code = models.CharField(max_length=6, blank=True, null=True)
     full_name = models.CharField(('full name'), max_length=255,default='')
-
+    verification_sent_at = models.DateTimeField(null=True, blank=True)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['full_name']
 
