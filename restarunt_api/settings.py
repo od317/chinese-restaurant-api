@@ -144,6 +144,8 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
+# 3600 seconds = 1 hour (as you wanted)
+PASSWORD_RESET_TIMEOUT = 3600
 
 # Email configuration for Gmail SMTP
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

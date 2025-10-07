@@ -10,6 +10,12 @@ from datetime import timedelta
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from django.utils.http import urlsafe_base64_decode
+import six
+
 
 User = get_user_model()
 
@@ -131,6 +137,157 @@ def resend_verification_code(request):
             {'error': 'No account found with this email'}, 
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+password_reset_token_generator = PasswordResetTokenGenerator()
+
+@api_view(['POST'])
+def password_reset_request(request):
+    """
+    Request password reset - sends email with reset link
+    """
+    email = request.data.get('email')
+    
+    if not email:
+        return Response(
+            {'error': 'Email is required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        user = User.objects.get(email=email)
+        
+        # Generate token and UID
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = password_reset_token_generator.make_token(user)
+        
+        # In production, you'll want to use your frontend URL here
+        reset_url = f"http://localhost:3000/reset-password/{uid}/{token}/"
+        
+        # Send email
+        send_mail(
+            'Password Reset Request - Restaurant App',
+            f'Click the link to reset your password: {reset_url}\n\n'
+            f'This link will expire in 1 hour.',
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+        
+        # Always return success even if email doesn't exist (security best practice)
+        return Response({
+            'message': 'If an account with this email exists, a password reset link has been sent.'
+        })
+        
+    except User.DoesNotExist:
+        # Still return success for security (don't reveal which emails exist)
+        return Response({
+            'message': 'If an account with this email exists, a password reset link has been sent.'
+        })
+
+@api_view(['POST'])
+def password_reset_confirm(request):
+    """
+    Confirm password reset with token and set new password
+    """
+    uid = request.data.get('uid')
+    token = request.data.get('token')
+    new_password = request.data.get('new_password')
+    confirm_password = request.data.get('confirm_password')  # Add password confirmation
+    
+    # Check all required fields including confirmation
+    if not all([uid, token, new_password, confirm_password]):
+        return Response(
+            {'error': 'UID, token, new password and confirmation are required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Validate that passwords match
+    if new_password != confirm_password:
+        return Response(
+            {'error': 'Passwords do not match'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Optional: Add password strength validation here
+    # You can add checks for minimum length, complexity, etc.
+    if len(new_password) < 8:
+        return Response(
+            {'error': 'Password must be at least 8 characters long'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Decode UID
+        user_id = urlsafe_base64_decode(uid)
+        user_id = user_id.decode()  # Convert bytes to string if needed
+        
+        user = User.objects.get(pk=user_id)
+        
+        # Verify token
+        if not password_reset_token_generator.check_token(user, token):
+            return Response(
+                {'error': 'Invalid or expired reset token'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+        
+        # FUTURE ENHANCEMENT: Send confirmation email that password was changed
+        # send_mail(
+        #     'Password Changed - Restaurant App',
+        #     'Your password has been successfully changed.',
+        #     settings.DEFAULT_FROM_EMAIL,
+        #     [user.email],
+        #     fail_silently=False,
+        # )
+        
+        return Response({
+            'message': 'Password reset successfully. You can now login with your new password.'
+        })
+        
+    except (User.DoesNotExist, ValueError, OverflowError):
+        return Response(
+            {'error': 'Invalid reset link'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['POST'])
+def password_change(request):
+    """
+    Change password for authenticated users
+    """
+    if not request.user.is_authenticated:
+        return Response(
+            {'error': 'Authentication required'}, 
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
+    current_password = request.data.get('current_password')
+    new_password = request.data.get('new_password')
+    
+    if not all([current_password, new_password]):
+        return Response(
+            {'error': 'Current password and new password are required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Verify current password
+    if not request.user.check_password(current_password):
+        return Response(
+            {'error': 'Current password is incorrect'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Set new password
+    request.user.set_password(new_password)
+    request.user.save()
+    
+    return Response({
+        'message': 'Password changed successfully.'
+    })
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])  # Restrict to admin users only
