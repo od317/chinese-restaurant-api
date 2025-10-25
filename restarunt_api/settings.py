@@ -37,6 +37,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'users',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -51,6 +56,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'restarunt_api.urls'
@@ -155,3 +163,39 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'osamadrbas31@gmail.com'  # Your Gmail address
 EMAIL_HOST_PASSWORD = 'bmnn odlo vtia sthv'  # Your Gmail App Password (see step 2 below)
 DEFAULT_FROM_EMAIL = 'osamadrbas31@gmail.com'  # Your Gmail address
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+)
+
+# Configure redirect URLs after login/logout
+LOGIN_REDIRECT_URL = '/'  # Where users go after successful login
+LOGOUT_REDIRECT_URL = '/' # Where users go after logout
+
+# Social account specific settings
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': 'your-google-client-id',
+            'secret': 'your-google-client-secret',
+            'key': ''
+        },
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        }
+    }
+}
+
+# Important: Configure allauth to work with your custom user model
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = 'optional'  # Since you have your own verification
